@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+message Comment {
+    string ID = 1;
+    string Text = 2;
+    CommentState State = 3;
+}
+
+enum CommentState {
+    CREATED = 1;
+    UPDATED = 2;
+    DELETED = 3'
+}
