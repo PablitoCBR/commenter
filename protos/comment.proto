@@ -1,5 +1,7 @@
 syntax = "proto3";
 
+package comments;
+
 message Comment {
     string ID = 1;
     string GroupID = 2;
@@ -8,7 +10,7 @@ message Comment {
 }
 
 enum CommentState {
-    CREATED = 1;
-    UPDATED = 2;
-    DELETED = 3'
+    CREATED = 0;
+    UPDATED = 1;
+    DELETED = 2;
 }
