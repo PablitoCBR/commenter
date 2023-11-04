@@ -88,7 +88,7 @@ impl ApplicationContext {
     pub async fn listen_blocking(&self) {
         self.consumer
             .subscribe(&[ApplicationContext::TOPIC])
-            .expect("Subscribing to topic failed");
+            .expect("Subscribed to topic");
 
         loop {
             match self.consumer.recv().await {
