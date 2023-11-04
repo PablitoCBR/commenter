@@ -1,96 +1,82 @@
 mod comments;
-mod commenting;
-mod manager;
+mod context;
 mod stomp;
 
-use std::{
-    sync::{
-        Arc,
-        atomic::{
-            AtomicUsize,
-            Ordering
-        }
-    },
-    collections::HashMap
-};
+use context::ApplicationContext;
+use stomp::{StompClientFrame, StompFrame};
 
-use comments::Comment;
+use std::sync::Arc;
+
 use futures_util::{SinkExt, StreamExt, TryFutureExt};
 
-use stomp::StompFrame;
+use tokio::sync::mpsc;
 use tokio_stream::wrappers::UnboundedReceiverStream;
-use tokio::sync::{
-    mpsc,
-    RwLock
-};
 
 use warp::{
     self,
-    filters::ws::{WebSocket, Ws},
+    filters::ws::{WebSocket, Ws, Message},
     Filter,
 };
 
-// use manager::Manager;
-
-type Users = Arc<RwLock<HashMap<usize, mpsc::UnboundedSender<Comment>>>>;
-static NEXT_USER_ID: AtomicUsize = AtomicUsize::new(1);
-
 #[tokio::main]
 async fn main() {
-    // let manager = Arc::new(Manager::default());
-    // let manager = warp::any().map(move || manager.clone());
-    let users = Users::default();
-    let users = warp::any().map(move || users.clone());
+    let context = Arc::new(ApplicationContext::new(&"localhost:9092"));
+    let context_clone = context.clone();
+
+    tokio::task::spawn(async move {
+        context_clone.listen_blocking().await
+    });
+
+    let context_filter_wrapper = warp::any().map(move || context.clone());
 
     let ws_endpoint = warp::path("ws")
         .and(warp::ws())
-        .and(users)
-        .map(|ws: Ws, users| ws.on_upgrade(move |socket| handle_connection(socket, users)));
+        .and(context_filter_wrapper)
+        .map(|ws: Ws, context| ws.on_upgrade(move |socket| handle_connection(socket, context)));
 
-    warp::serve(ws_endpoint).run(([127, 0, 0, 1], 5080)).await;
+    warp::serve(ws_endpoint).run(([127, 0, 0, 1], 5050)).await;
 }
 
-async fn handle_connection(ws: WebSocket, users: Users) {
-    let user_id = NEXT_USER_ID.fetch_add(1, Ordering::Relaxed);
-
+async fn handle_connection(ws: WebSocket, context: Arc<ApplicationContext>) {
     // Split user socket to receiving and producing parts
     let (mut user_ws_tx, mut user_ws_rx) = ws.split();
 
     // Create buffer channel for outgoing comments
-    let (mut tx, mut rx) = mpsc::unbounded_channel::<Comment>();
+    let (mut tx, mut rx) = mpsc::unbounded_channel::<StompFrame>();
     let mut rx = UnboundedReceiverStream::new(rx);
 
     // Create async task that will listen for outgoing comments and push them to the websocket buffer
     tokio::task::spawn(async move {
         while let Some(comment) = rx.next().await {
-
-            // let message = comment.into();
-            // user_ws_tx
-            //     .send(message)
-            //     .unwrap_or_else(|e| {
-            //         eprintln!("websocket send error: {}", e);
-            //     })
-            //     .await;
+            user_ws_tx
+                .send(Message::text(comment))
+                .unwrap_or_else(|e| {
+                    eprintln!("websocket send error: {}", e);
+                })
+                .await;
         }
     });
 
-    // Register users in our dict so we could funout the messages
-    users.write().await.insert(user_id, tx);
+    // Register user to context in order to obtain ID
+    let user_id = context.add_user(tx).await;
 
     // Loop for icoming messages from them socket
     while let Some(result) = user_ws_rx.next().await {
-        let stomp_frame_parsing_result = match result {
-            Ok(msg) =>StompFrame::new(msg),
-            Err(err) => {
-                println!("Error on WS conn..");
-                break;
+        if let Ok(msg) = result {
+            if let Ok(frame) = StompClientFrame::new(msg) {
+                if let StompClientFrame::DISCONNECT = frame {
+                    break; // wow... ugly as fuck...
+                } else if let Err(msg_handling_err) = context.handle_client_frame(user_id, frame).await {
+                    todo!("Handle msg handling errors: {:?}", msg_handling_err);
+                }
+            } else {
+                todo!("Handle parsing errors");
             }
-        };
-
-        if let Err(err) = stomp_frame_parsing_result {
-            println!("{}", err);
+        } else {
+            todo!("Handle receiving errors");
+            break;
         }
-
-        // println!("Parsed ok? {}", stomp_frame_parsing_result.is_ok());
     }
+
+    context.remove_user(user_id).await;
 }
