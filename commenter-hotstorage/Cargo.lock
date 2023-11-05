@@ -109,6 +109,8 @@ dependencies = [
  "dotenv",
  "prost",
  "prost-build",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

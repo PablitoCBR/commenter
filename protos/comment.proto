@@ -1,11 +1,13 @@
 syntax = "proto3";
 
+import "google/protobuf/wrappers.proto";
+
 package comments;
 
 message Comment {
     string ID = 1;
     string GroupID = 2;
-    string Text = 3;
+    google.protobuf.StringValue Text = 3;
     CommentState State = 4;
 }
 

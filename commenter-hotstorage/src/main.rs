@@ -1,6 +1,7 @@
 use commenter_database::{comments::Comment, establish_connection};
 
-use diesel::RunQueryDsl;
+use diesel::{RunQueryDsl, ExpressionMethods};
+use diesel::pg::upsert::IncompleteOnConflict;
 use prost::Message;
 
 use std::time::Duration;
@@ -22,9 +23,10 @@ fn main() {
         .set("group.id", CONSUMER_GROUP_ID)
         .set("bootstrap.servers", "localhost:9092")
         .set("enable.partition.eof", "false")
-        .set("session.timeout.ms", "6000")
+        .set("session.timeout.ms", "10000")
         .set("enable.auto.commit", "false")
         .set("allow.auto.create.topics", "true")
+        .set("security.protocol", "PLAINTEXT")
         .create()
         .expect("Kafka consumer created");
 
@@ -60,6 +62,12 @@ fn handle_message<'a>(message: &'a BorrowedMessage<'a>) -> Result<&'a BorrowedMe
 
     diesel::insert_into(commenter_database::schema::comments::dsl::comments)
         .values(comment)
+        .on_conflict(commenter_database::schema::comments::dsl::id)
+        .do_update()
+        .set((
+            commenter_database::schema::comments::dsl::state.eq(comment.text),
+            commenter_database::schema::comments::dsl::text.eq(comment.text)
+        ))
         .execute(& mut establish_connection())?;
 
     Ok(message)
