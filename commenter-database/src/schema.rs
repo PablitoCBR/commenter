@@ -7,7 +7,7 @@ diesel::table! {
         #[max_length = 255]
         group_id -> Varchar,
         #[max_length = 1024]
-        text -> Nullable<Varchar>,
+        text -> Varchar,
         state -> Int4,
     }
 }

@@ -149,8 +149,8 @@ impl ApplicationContext {
     async fn send(&self, frame: SendClientFrame) -> Result<()> {
         let comment = match frame {
             SendClientFrame::CREATE { destination, text } => Comment::new_create(destination, text),
-            SendClientFrame::UPDATE { id, text } => Comment::new_update(id, text),
-            SendClientFrame::DELETE { id } => Comment::new_delete(id),
+            SendClientFrame::UPDATE { id, text } => Comment::new_update(id, text).await?,
+            SendClientFrame::DELETE { id } => Comment::new_delete(id).await?,
         };
 
         let sending_result = self

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::str;
 use warp::ws::Message;
 
-use crate::comments::Comment;
+use crate::comments::{Comment, CommentState};
 
 const DESTINATION: &str = "destination";
 const ACTION: &str = "action";
@@ -31,11 +31,14 @@ pub enum SendClientFrame {
 
 impl StompFrame {
     pub fn new(comment: &Comment) -> StompFrame {
+        let state: CommentState = num::FromPrimitive::from_i32(comment.state).unwrap();
+
         StompFrame {
             command: "MESSAGE".to_owned(),
             headers: HashMap::from([
                 (DESTINATION.to_owned(), comment.group_id.clone()),
-                (ID.to_owned(), comment.id.clone())
+                (ID.to_owned(), comment.id.clone()),
+                (ACTION.to_owned(), state.as_str_name().to_owned()),
             ]),
             text: comment.text.to_owned(),
         }
@@ -63,7 +66,6 @@ impl Into<String> for StompFrame {
 }
 
 impl StompClientFrame {
-
     pub fn new(msg: Message) -> Result<StompClientFrame> {
         let raw_str = str::from_utf8(msg.as_bytes())?;
 
@@ -117,10 +119,7 @@ impl StompClientFrame {
 
         return match command {
             Some(cmd) => match cmd.as_str() {
-                "SEND" => match body {
-                    Some(payload) => StompClientFrame::crate_send_frame(headers, payload),
-                    None => bail!("Unable to decode body for SEND command"),
-                },
+                "SEND" => StompClientFrame::crate_send_frame(headers, body),
                 "SUBSCRIBE" => StompClientFrame::create_subscribe_frame(headers),
                 "UNSUBSCRIBE" => StompClientFrame::create_unsubscribe_frame(headers),
                 "DISCONNECT" => Ok(StompClientFrame::DISCONNECT),
@@ -132,14 +131,18 @@ impl StompClientFrame {
 
     fn crate_send_frame(
         headers: HashMap<String, String>,
-        payload: Vec<u8>,
+        payload: Option<Vec<u8>>,
     ) -> Result<StompClientFrame> {
-        let text = String::from_utf8(payload)?;
-
         if let Some(action) = headers.get(ACTION) {
             let send_frame = match action.as_str() {
-                "CREATE" => StompClientFrame::create_send_create_frame(headers, text),
-                "UPDATE" => StompClientFrame::create_send_update_frame(headers, text),
+                "CREATE" => StompClientFrame::create_send_create_frame(
+                    headers,
+                    String::from_utf8(payload.unwrap_or_default())?,
+                ),
+                "UPDATE" => StompClientFrame::create_send_update_frame(
+                    headers,
+                    String::from_utf8(payload.unwrap_or_default())?,
+                ),
                 "DELETE" => StompClientFrame::create_send_delete_frame(headers),
                 _ => bail!("Urecognized action type"),
             }?;

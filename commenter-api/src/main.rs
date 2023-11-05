@@ -14,7 +14,7 @@ fn rocket() -> _ {
 }
 
 
-#[get("/comment/<id>")]
+#[get("/comments/<id>")]
 fn get_comment(id: &str) -> Result<Json<commenter_database::comments::Comment>, NotFound<String>> {
     // TODO: DB connection pool
     commenter_database::schema::comments::dsl::comments

@@ -58,6 +58,9 @@ fn handle_message<'a>(message: &'a BorrowedMessage<'a>) -> Result<&'a BorrowedMe
         rdkafka::Message::payload(message).context("Message should have payload")?,
     )?;
 
+    let state = comment.state.clone();
+    let text = comment.text.clone();
+
     //TODO: Add connection pool from r2d2
 
     diesel::insert_into(commenter_database::schema::comments::dsl::comments)
@@ -65,8 +68,8 @@ fn handle_message<'a>(message: &'a BorrowedMessage<'a>) -> Result<&'a BorrowedMe
         .on_conflict(commenter_database::schema::comments::dsl::id)
         .do_update()
         .set((
-            commenter_database::schema::comments::dsl::state.eq(comment.text),
-            commenter_database::schema::comments::dsl::text.eq(comment.text)
+            commenter_database::schema::comments::dsl::state.eq(state),
+            commenter_database::schema::comments::dsl::text.eq(text)
         ))
         .execute(& mut establish_connection())?;
 

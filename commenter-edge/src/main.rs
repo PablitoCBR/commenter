@@ -34,7 +34,7 @@ async fn main() {
         .and(context_filter_wrapper)
         .map(|ws: Ws, context| ws.on_upgrade(move |socket| handle_connection(socket, context)));
 
-    warp::serve(ws_endpoint).run(([127, 0, 0, 1], 5050)).await;
+    warp::serve(ws_endpoint).run(([127, 0, 0, 1], 5060)).await;
 }
 
 async fn handle_connection(ws: WebSocket, context: Arc<ApplicationContext>) {
