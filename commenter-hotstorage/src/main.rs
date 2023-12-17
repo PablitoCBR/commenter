@@ -15,13 +15,19 @@ use rdkafka::{
 
 use anyhow::{bail, Context, Result};
 
+use dotenv::dotenv;
+use std::env;
+
 const CONSUMER_GROUP_ID: &str = "commenter-hotstorage";
 const TOPIC: &str = "comments";
 
 fn main() {
+    dotenv().ok();
+    let broker_host = env::var("BROKER").expect("BROKER must be set");
+
     let consumer: BaseConsumer = ClientConfig::new()
         .set("group.id", CONSUMER_GROUP_ID)
-        .set("bootstrap.servers", "localhost:9092")
+        .set("bootstrap.servers", &broker_host)
         .set("enable.partition.eof", "false")
         .set("session.timeout.ms", "10000")
         .set("enable.auto.commit", "false")

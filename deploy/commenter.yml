@@ -1,6 +1,52 @@
----
-version: '2'
+version: '3.8'
 services:
+  commenter-api:
+    build:
+      context: ../.
+      dockerfile: ./commenter-api/Dockerfile
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_started
+    environment:
+      DATABASE_URL: "postgres://postgres:admin@db:5432/commenter"
+  
+  commenter-hotstorage:
+    build:
+      context: ../.
+      dockerfile: ./commenter-hotstorage/Dockerfile
+    depends_on:
+      broker:
+        condition: service_healthy
+      db:
+        condition: service_started
+    environment:
+      DATABASE_URL: "postgres://postgres:admin@db:5432/commenter"
+      BROKER: "broker:9092"
+  
+  commenter-edge:
+    build:
+      context: ../.
+      dockerfile: ./commenter-edge/Dockerfile
+    ports:
+      - "5060:5060"
+    depends_on:
+      broker:
+        condition: service_healthy
+      db:
+        condition: service_started
+    environment:
+      BROKER: "broker:9092"
+
+  db:
+    image: postgres:latest
+    restart: always
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_PASSWORD: admin
+
   zookeeper:
     image: confluentinc/cp-zookeeper:7.2.2
     hostname: zookeeper
@@ -40,27 +86,35 @@ services:
       CONFLUENT_METRICS_REPORTER_TOPIC_REPLICAS: 1
       CONFLUENT_METRICS_ENABLE: 'true'
       CONFLUENT_SUPPORT_CUSTOMER_ID: 'anonymous'
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "broker:9092", "--list"]
+      interval: 20s
+      timeout: 5s
+      retries: 10
 
   schema-registry:
     image: confluentinc/cp-schema-registry:7.2.2
     hostname: schema-registry
     container_name: schema-registry
-    depends_on:
-      - broker
     ports:
       - "8081:8081"
     environment:
       SCHEMA_REGISTRY_HOST_NAME: schema-registry
       SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: 'broker:29092'
       SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+    depends_on:
+      broker:
+        condition: service_healthy
 
   control-center:
     image: confluentinc/cp-enterprise-control-center:7.2.2
     hostname: control-center
     container_name: control-center
     depends_on:
-      - broker
-      - schema-registry      
+      broker:
+        condition: service_healthy
+      schema-registry:
+        condition: service_started
     ports:
       - "9021:9021"
     environment:

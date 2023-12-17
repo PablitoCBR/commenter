@@ -5,7 +5,7 @@ mod stomp;
 use context::ApplicationContext;
 use stomp::{StompClientFrame, StompFrame};
 
-use std::sync::Arc;
+use std::{sync::Arc, net::{SocketAddr, IpAddr}};
 
 use futures_util::{SinkExt, StreamExt, TryFutureExt};
 
@@ -18,9 +18,15 @@ use warp::{
     Filter,
 };
 
+use dotenv::dotenv;
+use std::env;
+
 #[tokio::main]
 async fn main() {
-    let context = Arc::new(ApplicationContext::new(&"localhost:9092"));
+    dotenv().ok();
+    let broker_host = env::var("BROKER").expect("BROKER must be set");
+
+    let context = Arc::new(ApplicationContext::new(&broker_host));
     let context_clone = context.clone();
 
     tokio::task::spawn(async move {
@@ -34,7 +40,10 @@ async fn main() {
         .and(context_filter_wrapper)
         .map(|ws: Ws, context| ws.on_upgrade(move |socket| handle_connection(socket, context)));
 
-    warp::serve(ws_endpoint).run(([127, 0, 0, 1], 5060)).await;
+    let ip_address = env::var("WARP_ADDRESS").expect("WARP_ADDRESS must be set").parse::<IpAddr>().expect("WARP_ADDRESS is in ivalid format");
+    let port = env::var("WARP_PORT").expect("WARP_PORT has to be set").parse::<u16>().expect("WARP_PORT should be valud u16");
+
+    warp::serve(ws_endpoint).run(SocketAddr::new(ip_address, port)).await;
 }
 
 async fn handle_connection(ws: WebSocket, context: Arc<ApplicationContext>) {

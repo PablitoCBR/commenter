@@ -120,6 +120,7 @@ dependencies = [
  "anyhow",
  "commenter-database",
  "diesel",
+ "dotenv",
  "prost",
  "rdkafka",
 ]
