@@ -1,8 +1,8 @@
 use commenter_database::{comments::Comment, establish_connection};
 
-use diesel::{RunQueryDsl, ExpressionMethods};
-use diesel::pg::upsert::IncompleteOnConflict;
-use prost::Message;
+use diesel::{ExpressionMethods, RunQueryDsl};
+use prost::{DecodeError, Message};
+use thiserror::Error;
 
 use std::time::Duration;
 
@@ -12,8 +12,6 @@ use rdkafka::{
     message::BorrowedMessage,
     ClientConfig,
 };
-
-use anyhow::{bail, Context, Result};
 
 use dotenv::dotenv;
 use std::env;
@@ -40,29 +38,19 @@ fn main() {
 
     loop {
         if let Some(result) = consumer.poll(Duration::from_secs(1)) {
-            if let Err(err) = wrap_result(&result)
-                .and_then(handle_message)
-                .and_then(|msg| commit(&consumer, msg))
-            {
-                panic!("I let it panic... for pleasure... because: {:?}", err);
+            if let Err(error) = handle_message(&consumer, result) {
+                eprintln!("{:?}", error);
             }
         }
     }
 }
 
-fn wrap_result<'a>(
-    result: &'a Result<BorrowedMessage<'a>, KafkaError>,
-) -> Result<&'a BorrowedMessage<'a>> {
-    match result {
-        Ok(msg) => Ok(msg),
-        Err(err) => bail!(err.to_owned()),
-    }
-}
-
-fn handle_message<'a>(message: &'a BorrowedMessage<'a>) -> Result<&'a BorrowedMessage<'a>> {
-    let comment = Comment::decode(
-        rdkafka::Message::payload(message).context("Message should have payload")?,
-    )?;
+fn handle_message(
+    consumer: &BaseConsumer,
+    message_result: Result<BorrowedMessage, KafkaError>,
+) -> Result<(), HotStorageError> {
+    let message = message_result?;
+    let comment = get_message_payload(&message)?;
 
     let state = comment.state.clone();
     let text = comment.text.clone();
@@ -75,14 +63,34 @@ fn handle_message<'a>(message: &'a BorrowedMessage<'a>) -> Result<&'a BorrowedMe
         .do_update()
         .set((
             commenter_database::schema::comments::dsl::state.eq(state),
-            commenter_database::schema::comments::dsl::text.eq(text)
+            commenter_database::schema::comments::dsl::text.eq(text),
         ))
-        .execute(& mut establish_connection())?;
+        .execute(&mut establish_connection())?;
 
-    Ok(message)
+    consumer.commit_message(&message, CommitMode::Sync)?;
+    Ok(())
 }
 
-fn commit(consumer: &BaseConsumer, message: &BorrowedMessage<'_>) -> Result<()> {
-    consumer.commit_message(message, CommitMode::Sync)?;
-    Ok(())
+fn get_message_payload(message: &BorrowedMessage) -> Result<Comment, HotStorageError> {
+    match rdkafka::Message::payload(message) {
+        Some(payload) => Ok(Comment::decode(payload)?),
+        None => Err(HotStorageError::MissingPayload(rdkafka::Message::offset(
+            message,
+        ))),
+    }
+}
+
+#[derive(Error, Debug)]
+pub enum HotStorageError {
+    #[error("Error on kafka interaction")]
+    Kafka(#[from] rdkafka::error::KafkaError),
+
+    #[error("Error on database interaction")]
+    Database(#[from] diesel::result::Error),
+
+    #[error("Error on message encoding")]
+    Encoding(#[from] DecodeError),
+
+    #[error("Received message is missing payload (offset: {0})")]
+    MissingPayload(i64),
 }
