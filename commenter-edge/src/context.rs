@@ -77,7 +77,9 @@ impl ApplicationContext {
     pub async fn handle_client_frame(&self, user_id: usize, frame: StompClientFrame) -> Result<()> {
         match frame {
             StompClientFrame::SEND(send_frme) => self.send(send_frme).await,
-            StompClientFrame::SUBSCRIBE(destination) => self.subscribe(user_id, destination).await,
+            StompClientFrame::SUBSCRIBE { destination, id } => {
+                self.subscribe(user_id, destination).await
+            }
             StompClientFrame::UNSUBSCRIBE(destination) => {
                 self.unsubscribe(user_id, destination).await
             }
