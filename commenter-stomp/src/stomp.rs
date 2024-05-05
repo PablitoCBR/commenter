@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::str;
 use warp::ws::Message;
 
-use crate::comments::{Comment, CommentState};
+// use crate::comments::{Comment, CommentState};
 
 const DESTINATION: &str = "destination";
 const ACTION: &str = "action";
@@ -31,21 +31,21 @@ pub enum SendClientFrame {
     DELETE { id: String },
 }
 
-impl StompFrame {
-    pub fn new(comment: &Comment) -> StompFrame {
-        let state: CommentState = num::FromPrimitive::from_i32(comment.state).unwrap();
+// impl StompFrame {
+//     pub fn new(comment: &Comment) -> StompFrame {
+//         let state: CommentState = num::FromPrimitive::from_i32(comment.state).unwrap();
 
-        StompFrame {
-            command: "MESSAGE".to_owned(),
-            headers: HashMap::from([
-                (DESTINATION.to_owned(), comment.group_id.clone()),
-                (ID.to_owned(), comment.id.clone()),
-                (ACTION.to_owned(), state.as_str_name().to_owned()),
-            ]),
-            text: comment.text.to_owned(),
-        }
-    }
-}
+//         StompFrame {
+//             command: "MESSAGE".to_owned(),
+//             headers: HashMap::from([
+//                 (DESTINATION.to_owned(), comment.group_id.clone()),
+//                 (ID.to_owned(), comment.id.clone()),
+//                 (ACTION.to_owned(), state.as_str_name().to_owned()),
+//             ]),
+//             text: comment.text.to_owned(),
+//         }
+//     }
+// }
 
 impl Into<String> for StompFrame {
     fn into(self) -> String {
@@ -68,7 +68,8 @@ impl Into<String> for StompFrame {
 }
 
 impl StompClientFrame {
-    pub fn new(msg: Message) -> Result<StompClientFrame> {
+    #[inline]
+    pub fn new(msg: &Message) -> Result<StompClientFrame> {
         let raw_str = str::from_utf8(msg.as_bytes())?;
 
         let mut command: Option<String> = None;
@@ -104,7 +105,7 @@ impl StompClientFrame {
             if command.is_none() {
                 command = Some(raw_str[..fixed_index].to_owned());
             } else if last_new_line_index != index - new_line_shift {
-                if ((last_new_line_index + 1) != fixed_index) {
+                if (last_new_line_index + 1) != fixed_index {
                     let header_splitted: Vec<String> = raw_str[(last_new_line_index + 1)..fixed_index]
                         .split(':')
                         .map(|el| el.to_owned())
@@ -460,7 +461,7 @@ mod tests {
         S: Into<String>,
     {
         let message = Message::text(input);
-        let result = StompClientFrame::new(message);
+        let result = StompClientFrame::new(&message);
 
         assert_that(&result).is_ok_containing(output);
     }

@@ -22,6 +22,8 @@ num-traits = "0.2"
 dotenv = "0.15.0"
 spectral = "0.6.0"
 
+commenter-stomp = { path = "../commenter-stomp" }
+
 [dependencies.uuid]
 version = "1.5.0"
 features = [

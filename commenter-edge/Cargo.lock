@@ -133,6 +133,7 @@ name = "commenter-edge"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "commenter-stomp",
  "dotenv",
  "futures-util",
  "num 0.4.1",
@@ -148,6 +149,15 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "uuid",
+ "warp",
+]
+
+[[package]]
+name = "commenter-stomp"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "spectral",
  "warp",
 ]
 
