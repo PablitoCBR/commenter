@@ -145,7 +145,6 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
- "spectral",
  "tokio",
  "tokio-stream",
  "uuid",
