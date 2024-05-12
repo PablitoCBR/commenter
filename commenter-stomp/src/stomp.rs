@@ -68,6 +68,17 @@ impl Into<String> for StompFrame {
 }
 
 impl StompClientFrame {
+
+    /// # Examples
+    /// ```
+    /// use warp::ws::Message;
+    /// use spectral::prelude::*; 
+    /// use commenter_stomp::stomp::StompClientFrame;
+    /// 
+    /// let message = Message::text("DISCONNECT\n\n\0");
+    /// let result = StompClientFrame::new(&message);
+    /// assert_that(&result).is_ok_containing(StompClientFrame::DISCONNECT);
+    /// ```
     #[inline]
     pub fn new(msg: &Message) -> Result<StompClientFrame> {
         let raw_str = str::from_utf8(msg.as_bytes())?;
